@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Mousekoin Miner</title>
+  <title>Persistent Mousekoin Miner</title>
   <!-- Combined Styling: Beautification & App UI -->
   <style>
     /* Base Beautification Styles */
@@ -159,6 +159,8 @@
   <script>
     // Set admin wallet address (lowercase for comparisons)
     const adminAddress = "0xde45f6a59a96daa0ae7f26bad254aa88241b8d04";
+    // Minimum withdrawal threshold constant
+    const MIN_WITHDRAWAL = 0.000500000138;
     let userAccount = "";
     let miningInterval;
     let minedAmount = 0;
@@ -275,22 +277,32 @@
       startMiningSession();
     });
 
-    // Withdraw button event: records the current mined amount as a pending withdrawal.
+    // Withdraw button event.
+    // Prompts the user for a withdrawal amount, checks that it meets the minimum, and then deducts it from the mined balance.
     document.getElementById('withdrawBtn').addEventListener('click', function() {
-      if (!withdrawals[userAccount]) withdrawals[userAccount] = [];
-      if (minedAmount > 0) {
-        withdrawals[userAccount].push({ amount: minedAmount, status: 'pending' });
-        alert("Your withdrawal request for " + minedAmount.toFixed(12) + " MSK is pending admin approval.");
-      } else {
-        alert("No mined amount available to withdraw.");
+      if (minedAmount < MIN_WITHDRAWAL) {
+        alert("You must have at least " + MIN_WITHDRAWAL.toFixed(12) + " MSK to withdraw.");
+        return;
       }
-      minedAmount = 0;
-      document.getElementById('minedAmount').innerText = "0";
-      document.getElementById('withdrawBtn').disabled = true;
-      document.getElementById('startMiningBtn').disabled = false;
-      document.getElementById('startMiningBtn').innerText = "Start Mining";
-      document.getElementById('timeRemaining').innerText = "10:00";
-      sessionFinished = false;
+      let withdrawAmount = prompt("Enter withdrawal amount (available: " + minedAmount.toFixed(12) + " MSK):");
+      withdrawAmount = parseFloat(withdrawAmount);
+      if (isNaN(withdrawAmount) || withdrawAmount <= 0) {
+        alert("Invalid withdrawal amount.");
+        return;
+      }
+      if (withdrawAmount > minedAmount) {
+        alert("Withdrawal amount exceeds available mined balance.");
+        return;
+      }
+      if (withdrawAmount < MIN_WITHDRAWAL) {
+        alert("Minimum withdrawal is " + MIN_WITHDRAWAL.toFixed(12) + " MSK.");
+        return;
+      }
+      if (!withdrawals[userAccount]) withdrawals[userAccount] = [];
+      withdrawals[userAccount].push({ amount: withdrawAmount, status: 'pending' });
+      alert("Your withdrawal request for " + withdrawAmount.toFixed(12) + " MSK is pending admin approval.");
+      minedAmount -= withdrawAmount; // Deduct the withdrawn amount
+      document.getElementById('minedAmount').innerText = minedAmount.toFixed(12);
       minedProgress[userAccount] = minedAmount;
       saveData();
       updateUserWithdrawalTable();
