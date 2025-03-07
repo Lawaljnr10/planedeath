@@ -1,147 +1,194 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>HTML5 Plane Shooter – Water Blast Edition</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trust Wallet Compatible Seed Phrase Generator</title>
+  <!-- Load the BIP39 library from jsDelivr CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/bip39@3.0.4/dist/bip39.min.js"></script>
   <style>
-    html, body {
+    /* Global Styles & Background */
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
       margin: 0;
       padding: 0;
-      overflow: hidden;
-      background-color: #000;
-      font-family: sans-serif;
+      background: linear-gradient(135deg, #89f7fe, #66a6ff);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      color: #333;
     }
-    canvas {
+    /* Main Container */
+    .container {
+      background-color: #fff;
+      border-radius: 8px;
+      padding: 2em;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      width: 90%;
+      max-width: 600px;
+      margin: 1em;
+    }
+    /* Headings */
+    h1, h2 {
+      color: #444;
+      text-align: center;
+    }
+    /* Seed Containers */
+    .seed-container {
+      margin-bottom: 1.5em;
+    }
+    /* Textarea for Seed Phrases */
+    textarea {
+      width: 100%;
+      height: 80px;
+      font-size: 1rem;
+      padding: 0.5em;
+      margin-bottom: 0.5em;
+      resize: none;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      transition: border-color 0.3s;
+    }
+    textarea:focus {
+      border-color: #66a6ff;
+      outline: none;
+    }
+    /* Button Styling */
+    button {
+      padding: 0.6em 1.2em;
+      font-size: 1rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s, transform 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+    }
+    /* Copy Button */
+    .copy-btn {
+      background-color: #89f7fe;
+      color: #fff;
+      margin-right: 0.5em;
+    }
+    .copy-btn:hover {
+      background-color: #66a6ff;
+    }
+    /* Regenerate Button */
+    .regen-btn {
+      background-color: #ff7675;
+      color: #fff;
       display: block;
+      width: 100%;
+      margin-top: 1em;
+    }
+    .regen-btn:hover {
+      background-color: #ff6b68;
+    }
+    /* Select Dropdown */
+    select {
+      padding: 0.3em;
+      font-size: 1rem;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      transition: border-color 0.3s;
+    }
+    select:focus {
+      border-color: #66a6ff;
+      outline: none;
+    }
+    /* Responsive Adjustments */
+    @media (max-width: 600px) {
+      textarea {
+        height: 100px;
+      }
+      button {
+        width: 100%;
+        margin-bottom: 0.5em;
+      }
     }
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
+  <div class="container">
+    <h1>Seed Phrase Generator</h1>
+    <div style="text-align: center; margin-bottom: 1em;">
+      <label for="wordCount">Select word count: </label>
+      <select id="wordCount">
+        <option value="12">12 Words</option>
+        <option value="18">18 Words</option>
+        <option value="24">24 Words</option>
+      </select>
+    </div>
+    
+    <div class="seed-container">
+      <h2>Seed Phrase 1</h2>
+      <textarea id="seed1" readonly></textarea>
+      <button class="copy-btn" onclick="copyText('seed1')">Copy</button>
+    </div>
+    
+    <div class="seed-container">
+      <h2>Seed Phrase 2</h2>
+      <textarea id="seed2" readonly></textarea>
+      <button class="copy-btn" onclick="copyText('seed2')">Copy</button>
+    </div>
+    
+    <button class="regen-btn" onclick="generateSeeds()">Regenerate</button>
+  </div>
+
   <script>
-    // Setup the canvas and context
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    
-    // The player's plane object
-    const player = {
-      x: canvas.width / 2,
-      y: canvas.height - 60,
-      width: 40,
-      height: 40,
-      speed: 5,
-      shootCooldown: 0,
-      movingLeft: false,
-      movingRight: false,
-      movingUp: false,
-      movingDown: false
-    };
-    
-    // Array for water projectiles
-    let projectiles = [];
-    
-    // Keyboard controls for moving and shooting
-    document.addEventListener("keydown", (e) => {
-      if (e.code === "ArrowLeft") player.movingLeft = true;
-      if (e.code === "ArrowRight") player.movingRight = true;
-      if (e.code === "ArrowUp") player.movingUp = true;
-      if (e.code === "ArrowDown") player.movingDown = true;
-      if (e.code === "Space") {
-        if (player.shootCooldown <= 0) {
-          // Add a water projectile that moves upward
-          projectiles.push({ x: player.x, y: player.y, speed: 7 });
-          player.shootCooldown = 15; // Cooldown in frames
-        }
+    // Map selected word count to required entropy bits: 12->128, 18->192, 24->256.
+    function getEntropy(wordCount) {
+      if (wordCount === 12) return 128;
+      if (wordCount === 18) return 192;
+      if (wordCount === 24) return 256;
+      return 128;
+    }
+
+    // Wait for the bip39 library to be available before proceeding.
+    function waitForBip39(callback) {
+      if (typeof bip39 !== "undefined" && bip39.generateMnemonic) {
+        callback();
+      } else {
+        setTimeout(function() { waitForBip39(callback); }, 100);
       }
-    });
-    
-    document.addEventListener("keyup", (e) => {
-      if (e.code === "ArrowLeft") player.movingLeft = false;
-      if (e.code === "ArrowRight") player.movingRight = false;
-      if (e.code === "ArrowUp") player.movingUp = false;
-      if (e.code === "ArrowDown") player.movingDown = false;
-    });
-    
-    // Draw the player's plane using a stylized airplane shape
-    function drawPlayer() {
-      ctx.save();
-      ctx.translate(player.x, player.y);
-      // Set a color for the plane
-      ctx.fillStyle = "#1E90FF"; // Dodger Blue
-      ctx.beginPath();
-      // Draw a simple airplane shape:
-      // Left wing tip
-      ctx.moveTo(-20, 0);
-      ctx.lineTo(-10, -10);
-      // Nose of the plane
-      ctx.lineTo(0, -5);
-      // Right wing tip
-      ctx.lineTo(10, -10);
-      ctx.lineTo(20, 0);
-      // Tail of the plane
-      ctx.lineTo(0, 10);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
     }
-    
-    // Draw water projectiles with a radial gradient for a liquid effect
-    function drawProjectiles() {
-      projectiles.forEach((proj) => {
-        // Create a water-like gradient from light blue to blue
-        let grad = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, 7);
-        grad.addColorStop(0, "#ADD8E6"); // Light Blue
-        grad.addColorStop(1, "#0000FF"); // Blue
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(proj.x, proj.y, 7, 0, Math.PI * 2);
-        ctx.fill();
-      });
+
+    // Generates BIP39 mnemonic phrases using the bip39 library.
+    function generateSeeds() {
+      const wordCount = parseInt(document.getElementById("wordCount").value, 10);
+      const entropy = getEntropy(wordCount);
+
+      try {
+        const mnemonic1 = bip39.generateMnemonic(entropy);
+        const mnemonic2 = bip39.generateMnemonic(entropy);
+        document.getElementById("seed1").value = mnemonic1;
+        document.getElementById("seed2").value = mnemonic2;
+      } catch (error) {
+        alert("Error generating mnemonic: " + error);
+      }
     }
-    
-    // Update the player's position based on key presses
-    function updatePlayer() {
-      if (player.movingLeft && player.x - player.width/2 > 0) player.x -= player.speed;
-      if (player.movingRight && player.x + player.width/2 < canvas.width) player.x += player.speed;
-      if (player.movingUp && player.y - player.height/2 > 0) player.y -= player.speed;
-      if (player.movingDown && player.y + player.height/2 < canvas.height) player.y += player.speed;
-      if (player.shootCooldown > 0) player.shootCooldown--;
+
+    // Copies text from the specified textarea to the clipboard.
+    function copyText(elementId) {
+      const textArea = document.getElementById(elementId);
+      textArea.select();
+      textArea.setSelectionRange(0, 99999); // For mobile devices
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(textArea.value)
+          .then(() => alert("Copied to clipboard!"))
+          .catch(err => alert("Failed to copy: " + err));
+      } else {
+        document.execCommand("copy");
+        alert("Copied to clipboard!");
+      }
     }
-    
-    // Update water projectile positions and remove those off-screen
-    function updateProjectiles() {
-      projectiles.forEach((proj, index) => {
-        proj.y -= proj.speed;
-        if (proj.y < 0) {
-          projectiles.splice(index, 1);
-        }
-      });
-    }
-    
-    // Main update function that handles all updates
-    function updateAll() {
-      updatePlayer();
-      updateProjectiles();
-    }
-    
-    // Main game loop using requestAnimationFrame for smooth animation
-    function gameLoop() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      updateAll();
-      drawPlayer();
-      drawProjectiles();
-      requestAnimationFrame(gameLoop);
-    }
-    
-    // Start the game loop
-    gameLoop();
-    
-    // Adjust the canvas size when the window is resized
-    window.addEventListener("resize", () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+
+    // Wait for both the DOM and the bip39 library to be ready before generating seeds.
+    document.addEventListener("DOMContentLoaded", function() {
+      waitForBip39(generateSeeds);
     });
   </script>
 </body>
