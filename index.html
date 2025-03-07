@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Trust Wallet Compatible Seed Phrase Generator</title>
+  <!-- Load bip39 as a global script -->
+  <script src="https://unpkg.com/bip39@3.0.4/dist/bip39.min.js"></script>
   <style>
     /* Global Styles & Background */
     body {
@@ -135,11 +137,9 @@
     <button class="regen-btn" id="regenSeeds">Regenerate</button>
   </div>
 
-  <!-- Use a module to import bip39 -->
-  <script type="module">
-    import * as bip39 from 'https://cdn.jsdelivr.net/npm/bip39@3.0.4/dist/index.js';
-
-    // Map selected word count to required entropy bits: 12->128, 18->192, 24->256.
+  <script>
+    // Map the selected word count to the required entropy bits:
+    // 12 words => 128 bits, 18 words => 192 bits, 24 words => 256 bits.
     function getEntropy(wordCount) {
       if (wordCount === 12) return 128;
       if (wordCount === 18) return 192;
@@ -147,11 +147,11 @@
       return 128;
     }
 
-    // Generate BIP39 mnemonic phrases using the imported bip39 library.
+    // Generate BIP39 mnemonic phrases using the global bip39 object.
     function generateSeeds() {
       const wordCount = parseInt(document.getElementById("wordCount").value, 10);
       const entropy = getEntropy(wordCount);
-
+      
       try {
         const mnemonic1 = bip39.generateMnemonic(entropy);
         const mnemonic2 = bip39.generateMnemonic(entropy);
@@ -178,8 +178,13 @@
       }
     }
 
-    // Set up event listeners once the DOM is fully loaded.
+    // Set up event listeners after the DOM is fully loaded.
     document.addEventListener("DOMContentLoaded", () => {
+      // Ensure the bip39 library is loaded.
+      if (typeof bip39 === "undefined" || !bip39.generateMnemonic) {
+        alert("BIP39 library did not load correctly.");
+        return;
+      }
       generateSeeds();
       document.getElementById("regenSeeds").addEventListener("click", generateSeeds);
       document.getElementById("wordCount").addEventListener("change", generateSeeds);
