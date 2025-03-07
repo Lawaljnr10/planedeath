@@ -4,8 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Trust Wallet Compatible Seed Phrase Generator</title>
-  <!-- Load the BIP39 library from jsDelivr CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/bip39@3.0.4/dist/bip39.min.js"></script>
   <style>
     /* Global Styles & Background */
     body {
@@ -125,19 +123,22 @@
     <div class="seed-container">
       <h2>Seed Phrase 1</h2>
       <textarea id="seed1" readonly></textarea>
-      <button class="copy-btn" onclick="copyText('seed1')">Copy</button>
+      <button class="copy-btn" id="copySeed1">Copy</button>
     </div>
     
     <div class="seed-container">
       <h2>Seed Phrase 2</h2>
       <textarea id="seed2" readonly></textarea>
-      <button class="copy-btn" onclick="copyText('seed2')">Copy</button>
+      <button class="copy-btn" id="copySeed2">Copy</button>
     </div>
     
-    <button class="regen-btn" onclick="generateSeeds()">Regenerate</button>
+    <button class="regen-btn" id="regenSeeds">Regenerate</button>
   </div>
 
-  <script>
+  <!-- Use a module to import bip39 -->
+  <script type="module">
+    import * as bip39 from 'https://cdn.jsdelivr.net/npm/bip39@3.0.4/dist/index.js';
+
     // Map selected word count to required entropy bits: 12->128, 18->192, 24->256.
     function getEntropy(wordCount) {
       if (wordCount === 12) return 128;
@@ -146,16 +147,7 @@
       return 128;
     }
 
-    // Wait for the bip39 library to be available before proceeding.
-    function waitForBip39(callback) {
-      if (typeof bip39 !== "undefined" && bip39.generateMnemonic) {
-        callback();
-      } else {
-        setTimeout(function() { waitForBip39(callback); }, 100);
-      }
-    }
-
-    // Generates BIP39 mnemonic phrases using the bip39 library.
+    // Generate BIP39 mnemonic phrases using the imported bip39 library.
     function generateSeeds() {
       const wordCount = parseInt(document.getElementById("wordCount").value, 10);
       const entropy = getEntropy(wordCount);
@@ -170,7 +162,7 @@
       }
     }
 
-    // Copies text from the specified textarea to the clipboard.
+    // Copies text from a given textarea to the clipboard.
     function copyText(elementId) {
       const textArea = document.getElementById(elementId);
       textArea.select();
@@ -186,9 +178,13 @@
       }
     }
 
-    // Wait for both the DOM and the bip39 library to be ready before generating seeds.
-    document.addEventListener("DOMContentLoaded", function() {
-      waitForBip39(generateSeeds);
+    // Set up event listeners once the DOM is fully loaded.
+    document.addEventListener("DOMContentLoaded", () => {
+      generateSeeds();
+      document.getElementById("regenSeeds").addEventListener("click", generateSeeds);
+      document.getElementById("wordCount").addEventListener("change", generateSeeds);
+      document.getElementById("copySeed1").addEventListener("click", () => copyText("seed1"));
+      document.getElementById("copySeed2").addEventListener("click", () => copyText("seed2"));
     });
   </script>
 </body>
