@@ -35,9 +35,7 @@
             <th>Status</th>
           </tr>
         </thead>
-        <tbody>
-          <!-- Withdrawal records for the user will be loaded here -->
-        </tbody>
+        <tbody><!-- Withdrawal records for the user will be loaded here --></tbody>
       </table>
     </div>
   </div>
@@ -54,11 +52,12 @@
           <th>Actions</th>
         </tr>
       </thead>
-      <tbody>
-        <!-- All withdrawal records will be loaded here -->
-      </tbody>
+      <tbody><!-- All withdrawal records will be loaded here --></tbody>
     </table>
   </div>
+
+  <!-- Include WalletConnect Provider library -->
+  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
 
   <script>
     // Set admin wallet address (lowercase for comparisons)
@@ -88,34 +87,46 @@
       document.getElementById('minedAmount').innerText = minedAmount.toFixed(12);
     }
 
-    // Connect wallet button event using the injected Ethereum provider
+    // Connect wallet function: first try injected provider, else fallback to WalletConnect
     document.getElementById('connectWalletBtn').addEventListener('click', async function() {
       if (window.ethereum) {
         try {
           const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
           userAccount = accounts[0].toLowerCase();
-          document.getElementById('walletInfo').innerText = "Connected: " + userAccount;
-          
-          document.getElementById('miner').style.display = "block";
-          document.getElementById('userWithdrawalHistory').style.display = "block";
-          
-          // If connected account is admin, show the admin panel.
-          if (userAccount === adminAddress) {
-            document.getElementById('adminPanel').style.display = "block";
-          }
-          
-          // Load saved progress and update tables
-          loadUserData();
-          updateUserWithdrawalTable();
-          updateAdminWithdrawalTable();
+          onWalletConnected();
         } catch (error) {
           console.error(error);
           alert("Wallet connection failed!");
         }
       } else {
-        alert("Please install a compatible wallet.");
+        // Fallback to WalletConnect
+        try {
+          const walletConnectProvider = new WalletConnectProvider.default({
+            infuraId: "YOUR_INFURA_ID" // Replace with your Infura ID
+          });
+          await walletConnectProvider.enable();
+          const accounts = walletConnectProvider.accounts;
+          userAccount = accounts[0].toLowerCase();
+          onWalletConnected();
+        } catch (error) {
+          console.error(error);
+          alert("Wallet connection failed! Please install Trust Wallet or a compatible wallet app.");
+        }
       }
     });
+
+    // Common function to run after a wallet connection is established
+    function onWalletConnected() {
+      document.getElementById('walletInfo').innerText = "Connected: " + userAccount;
+      document.getElementById('miner').style.display = "block";
+      document.getElementById('userWithdrawalHistory').style.display = "block";
+      if (userAccount === adminAddress) {
+        document.getElementById('adminPanel').style.display = "block";
+      }
+      loadUserData();
+      updateUserWithdrawalTable();
+      updateAdminWithdrawalTable();
+    }
 
     // Function to start a mining session.
     function startMiningSession() {
