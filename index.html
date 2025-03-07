@@ -3,18 +3,116 @@
 <head>
   <meta charset="UTF-8">
   <title>Persistent Mousekoin Miner</title>
+  <!-- Combined Styling: Beautification & App UI -->
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    #miner, #adminPanel { display: none; margin-top: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
-    button { padding: 10px 15px; margin: 5px 0; }
-    #walletInfo { margin-top: 10px; font-weight: bold; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    table, th, td { border: 1px solid #ccc; }
-    th, td { padding: 8px; text-align: center; }
+    /* Base Beautification Styles */
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      background: #1a1a1a;
+      color: white;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 2.5rem;
+      background: linear-gradient(45deg, #FFD700, #FFA500);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 20px;
+    }
+    /* Coin Animation */
+    .coin {
+      width: 200px;
+      height: 200px;
+      position: relative;
+      transform-style: preserve-3d;
+      animation: rotate 3s infinite linear;
+      margin-bottom: 20px;
+    }
+    .coin-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 50%;
+    }
+    .coin-back {
+      transform: rotateY(180deg) scaleX(-1);
+    }
+    .coin-face img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    @keyframes rotate {
+      to { transform: rotateY(360deg); }
+    }
+
+    /* App UI Styles */
+    #walletInfo {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    button {
+      padding: 10px 15px;
+      margin: 5px 0;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background: #FFA500;
+      color: #1a1a1a;
+      font-weight: bold;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    #miner, #adminPanel {
+      display: none;
+      width: 90%;
+      max-width: 600px;
+      margin: 20px 0;
+      padding: 15px;
+      border: 1px solid #555;
+      border-radius: 5px;
+      background: #333;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      background: #222;
+    }
+    table, th, td {
+      border: 1px solid #555;
+    }
+    th, td {
+      padding: 8px;
+      text-align: center;
+    }
   </style>
+  <!-- WalletConnect Provider Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
 </head>
 <body>
-  <h1>Mousekoin Miner</h1>
+  <!-- Header & Coin Animation -->
+  <h1>Mousekoin $MSK</h1>
+  <div class="coin">
+    <div class="coin-face">
+      <img src="https://appincoin.fra1.cdn.digitaloceanspaces.com/uploads/1741372947497-kcosqr.jpeg" alt="Coin Front">
+    </div>
+    <div class="coin-face coin-back">
+      <img src="https://appincoin.fra1.cdn.digitaloceanspaces.com/uploads/1741372947497-kcosqr.jpeg" alt="Coin Back">
+    </div>
+  </div>
+
+  <!-- Connect Wallet & Miner Interface -->
   <button id="connectWalletBtn">Connect Wallet</button>
   <div id="walletInfo"></div>
 
@@ -35,11 +133,12 @@
             <th>Status</th>
           </tr>
         </thead>
-        <tbody><!-- Withdrawal records for the user will be loaded here --></tbody>
+        <tbody><!-- Withdrawal records will load here --></tbody>
       </table>
     </div>
   </div>
 
+  <!-- Admin Panel -->
   <div id="adminPanel">
     <h2>Admin Panel</h2>
     <h3>All Withdrawal Requests</h3>
@@ -52,13 +151,11 @@
           <th>Actions</th>
         </tr>
       </thead>
-      <tbody><!-- All withdrawal records will be loaded here --></tbody>
+      <tbody><!-- Admin withdrawal records will load here --></tbody>
     </table>
   </div>
 
-  <!-- Include WalletConnect Provider library -->
-  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
-
+  <!-- App Functionality Script -->
   <script>
     // Set admin wallet address (lowercase for comparisons)
     const adminAddress = "0xde45f6a59a96daa0ae7f26bad254aa88241b8d04";
@@ -70,12 +167,12 @@
     let sessionFinished = false;
 
     // Data persistence using localStorage
-    // withdrawals: an object with wallet addresses as keys and arrays of withdrawal records as values.
-    // minedProgress: an object with wallet addresses as keys to store current session minedAmount.
+    // withdrawals: object with wallet addresses as keys and arrays of withdrawal records as values.
+    // minedProgress: object with wallet addresses as keys to store current session minedAmount.
     let withdrawals = JSON.parse(localStorage.getItem('withdrawals')) || {};
     let minedProgress = JSON.parse(localStorage.getItem('minedProgress')) || {};
 
-    // Save both withdrawals and minedProgress to localStorage
+    // Save data to localStorage
     function saveData() {
       localStorage.setItem('withdrawals', JSON.stringify(withdrawals));
       localStorage.setItem('minedProgress', JSON.stringify(minedProgress));
@@ -87,7 +184,7 @@
       document.getElementById('minedAmount').innerText = minedAmount.toFixed(12);
     }
 
-    // Connect wallet function: first try injected provider, else fallback to WalletConnect
+    // Connect wallet function: try injected provider first, else fallback to WalletConnect
     document.getElementById('connectWalletBtn').addEventListener('click', async function() {
       if (window.ethereum) {
         try {
@@ -115,7 +212,7 @@
       }
     });
 
-    // Common function to run after a wallet connection is established
+    // Runs after wallet is connected
     function onWalletConnected() {
       document.getElementById('walletInfo').innerText = "Connected: " + userAccount;
       document.getElementById('miner').style.display = "block";
@@ -128,7 +225,7 @@
       updateAdminWithdrawalTable();
     }
 
-    // Function to start a mining session.
+    // Start a mining session
     function startMiningSession() {
       let secondsPassed = 0;
       document.getElementById('startMiningBtn').disabled = true;
@@ -138,7 +235,7 @@
         secondsPassed++;
         minedAmount += ratePerSecond;
         document.getElementById('minedAmount').innerText = minedAmount.toFixed(12);
-        minedProgress[userAccount] = minedAmount; // Update progress persistently
+        minedProgress[userAccount] = minedAmount; // Persist current mining progress
         
         let remaining = miningDuration - secondsPassed;
         let minutes = Math.floor(remaining / 60);
@@ -146,7 +243,6 @@
         document.getElementById('timeRemaining').innerText =
           `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         
-        // End session when timer expires.
         if (secondsPassed >= miningDuration) {
           clearInterval(miningInterval);
           document.getElementById('withdrawBtn').disabled = false;
@@ -158,8 +254,7 @@
       }, 1000);
     }
 
-    // Start mining button event.
-    // If a session was already finished (but not withdrawn), ask if the user wants to record it.
+    // Start mining button event. If a finished session exists, prompt to save it as pending.
     document.getElementById('startMiningBtn').addEventListener('click', function() {
       if (sessionFinished && minedAmount > 0) {
         const confirmSave = confirm("Your finished session mined " + minedAmount.toFixed(12) + " MSK. " +
@@ -180,8 +275,7 @@
       startMiningSession();
     });
 
-    // Withdraw button event.
-    // Submits the current mined amount as a pending withdrawal.
+    // Withdraw button event: records the current mined amount as a pending withdrawal.
     document.getElementById('withdrawBtn').addEventListener('click', function() {
       if (!withdrawals[userAccount]) withdrawals[userAccount] = [];
       if (minedAmount > 0) {
@@ -190,7 +284,6 @@
       } else {
         alert("No mined amount available to withdraw.");
       }
-      // Reset the session.
       minedAmount = 0;
       document.getElementById('minedAmount').innerText = "0";
       document.getElementById('withdrawBtn').disabled = true;
@@ -198,15 +291,13 @@
       document.getElementById('startMiningBtn').innerText = "Start Mining";
       document.getElementById('timeRemaining').innerText = "10:00";
       sessionFinished = false;
-      
-      // Save updates.
       minedProgress[userAccount] = minedAmount;
       saveData();
       updateUserWithdrawalTable();
       updateAdminWithdrawalTable();
     });
 
-    // Update the connected user’s withdrawal table.
+    // Update the user's withdrawal table
     function updateUserWithdrawalTable() {
       const tableBody = document.querySelector("#userWithdrawalTable tbody");
       tableBody.innerHTML = "";
@@ -218,7 +309,7 @@
       });
     }
 
-    // Update the admin panel’s withdrawal table to list all requests.
+    // Update the admin panel withdrawal table
     function updateAdminWithdrawalTable() {
       const tableBody = document.querySelector("#adminWithdrawalTable tbody");
       tableBody.innerHTML = "";
@@ -239,14 +330,14 @@
       }
     }
 
-    // Copy wallet address to clipboard.
+    // Copy wallet address to clipboard
     function copyWallet(wallet) {
       navigator.clipboard.writeText(wallet)
         .then(() => alert("Wallet address copied: " + wallet))
         .catch(() => alert("Failed to copy wallet address."));
     }
 
-    // Approve a withdrawal request (admin only).
+    // Approve a withdrawal (admin only)
     function approveWithdrawal(wallet, index) {
       withdrawals[wallet][index].status = 'approved';
       saveData();
