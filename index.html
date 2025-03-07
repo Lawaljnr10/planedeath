@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Mousekoin Miner</title>
+  <title>Persistent Mousekoin Miner</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     #miner, #adminPanel { display: none; margin-top: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
@@ -36,7 +36,7 @@
           </tr>
         </thead>
         <tbody>
-          <!-- User withdrawal records will be inserted here -->
+          <!-- Withdrawal records for the user will be loaded here -->
         </tbody>
       </table>
     </div>
@@ -44,8 +44,6 @@
 
   <div id="adminPanel">
     <h2>Admin Panel</h2>
-    <p>Welcome, Admin! You can perform administrative tasks here.</p>
-    <!-- Withdrawal History Table for Admin -->
     <h3>All Withdrawal Requests</h3>
     <table id="adminWithdrawalTable">
       <thead>
@@ -57,132 +55,131 @@
         </tr>
       </thead>
       <tbody>
-        <!-- Admin withdrawal records will be inserted here -->
+        <!-- All withdrawal records will be loaded here -->
       </tbody>
     </table>
   </div>
 
   <script>
-    // Set the admin wallet address (in lowercase for comparison)
+    // Set admin wallet address (lowercase for comparisons)
     const adminAddress = "0xde45f6a59a96daa0ae7f26bad254aa88241b8d04";
     let userAccount = "";
     let miningInterval;
     let minedAmount = 0;
-    const ratePerSecond = 0.000000000138; // MSK mined per second
+    const ratePerSecond = 0.000000000138;
     const miningDuration = 10 * 60; // 10 minutes in seconds
-    let sessionFinished = false; // indicates if a session finished without withdrawal
+    let sessionFinished = false;
 
-    // Array to store withdrawal records
-    // Each record: { wallet, amount, status } where status is "pending" or "approved"
-    let withdrawals = [];
+    // Data persistence using localStorage
+    // withdrawals: an object with wallet addresses as keys and arrays of withdrawal records as values.
+    // minedProgress: an object with wallet addresses as keys to store current session minedAmount.
+    let withdrawals = JSON.parse(localStorage.getItem('withdrawals')) || {};
+    let minedProgress = JSON.parse(localStorage.getItem('minedProgress')) || {};
 
-    // Connect wallet button event
+    // Save both withdrawals and minedProgress to localStorage
+    function saveData() {
+      localStorage.setItem('withdrawals', JSON.stringify(withdrawals));
+      localStorage.setItem('minedProgress', JSON.stringify(minedProgress));
+    }
+
+    // Load the current user's mining progress from localStorage
+    function loadUserData() {
+      minedAmount = minedProgress[userAccount] || 0;
+      document.getElementById('minedAmount').innerText = minedAmount.toFixed(12);
+    }
+
+    // Connect wallet button event using the injected Ethereum provider
     document.getElementById('connectWalletBtn').addEventListener('click', async function() {
       if (window.ethereum) {
         try {
           const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-          userAccount = accounts[0];
-          document.getElementById('walletInfo').innerText = "Connected account: " + userAccount;
-          // Show miner interface once connected
+          userAccount = accounts[0].toLowerCase();
+          document.getElementById('walletInfo').innerText = "Connected: " + userAccount;
+          
           document.getElementById('miner').style.display = "block";
-          // Show the user's withdrawal history section
           document.getElementById('userWithdrawalHistory').style.display = "block";
-          // If the connected account is the admin, show the admin panel
-          if (userAccount.toLowerCase() === adminAddress) {
+          
+          // If connected account is admin, show the admin panel.
+          if (userAccount === adminAddress) {
             document.getElementById('adminPanel').style.display = "block";
-            updateAdminWithdrawalTable();
           }
+          
+          // Load saved progress and update tables
+          loadUserData();
           updateUserWithdrawalTable();
+          updateAdminWithdrawalTable();
         } catch (error) {
           console.error(error);
           alert("Wallet connection failed!");
         }
       } else {
-        alert("Please install Trust Wallet or a compatible wallet provider.");
+        alert("Please install a compatible wallet.");
       }
     });
 
-    // Function to start a mining session
+    // Function to start a mining session.
     function startMiningSession() {
-      // Reset display values for new session
-      minedAmount = 0;
-      document.getElementById('minedAmount').innerText = "0";
-      document.getElementById('timeRemaining').innerText = "10:00";
-      document.getElementById('withdrawBtn').disabled = true;
-      sessionFinished = false;
-      
       let secondsPassed = 0;
       document.getElementById('startMiningBtn').disabled = true;
       document.getElementById('startMiningBtn').innerText = "Mining in progress...";
-
+      
       miningInterval = setInterval(() => {
         secondsPassed++;
         minedAmount += ratePerSecond;
         document.getElementById('minedAmount').innerText = minedAmount.toFixed(12);
-
-        // Calculate remaining time
+        minedProgress[userAccount] = minedAmount; // Update progress persistently
+        
         let remaining = miningDuration - secondsPassed;
         let minutes = Math.floor(remaining / 60);
         let seconds = remaining % 60;
         document.getElementById('timeRemaining').innerText =
-          (minutes < 10 ? "0" + minutes : minutes) + ":" + (seconds < 10 ? "0" + seconds : seconds);
-
-        // When the 10-minute period is over, stop mining,
-        // enable withdraw button and also allow starting a new session.
+          `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        // End session when timer expires.
         if (secondsPassed >= miningDuration) {
           clearInterval(miningInterval);
           document.getElementById('withdrawBtn').disabled = false;
           document.getElementById('startMiningBtn').disabled = false;
           document.getElementById('startMiningBtn').innerText = "Start New Session";
           sessionFinished = true;
+          saveData();
         }
       }, 1000);
     }
 
-    // Start mining button event
+    // Start mining button event.
+    // If a session was already finished (but not withdrawn), ask if the user wants to record it.
     document.getElementById('startMiningBtn').addEventListener('click', function() {
-      // If a session has finished and minedAmount > 0, ask if user wants to record it as a pending withdrawal.
       if (sessionFinished && minedAmount > 0) {
-        const confirmSave = confirm("Your previous session mined " + minedAmount.toFixed(12) + " MSK. " +
-                                      "If you start a new session now, the mined amount from the finished session will be saved as a pending withdrawal. Proceed?");
+        const confirmSave = confirm("Your finished session mined " + minedAmount.toFixed(12) + " MSK. " +
+                                      "This will be saved as a pending withdrawal before starting a new session. Proceed?");
         if (confirmSave) {
-          const withdrawalRecord = {
-            wallet: userAccount,
-            amount: minedAmount,
-            status: "pending"
-          };
-          withdrawals.push(withdrawalRecord);
+          if (!withdrawals[userAccount]) withdrawals[userAccount] = [];
+          withdrawals[userAccount].push({ amount: minedAmount, status: "pending" });
           updateUserWithdrawalTable();
           updateAdminWithdrawalTable();
-          // Reset minedAmount before starting new session.
           minedAmount = 0;
           document.getElementById('minedAmount').innerText = "0";
           sessionFinished = false;
+          saveData();
         } else {
-          // If user cancels, do not start a new session.
           return;
         }
       }
       startMiningSession();
     });
 
-    // Withdraw button event
+    // Withdraw button event.
+    // Submits the current mined amount as a pending withdrawal.
     document.getElementById('withdrawBtn').addEventListener('click', function() {
-      // Create a withdrawal record for the finished session with pending status
+      if (!withdrawals[userAccount]) withdrawals[userAccount] = [];
       if (minedAmount > 0) {
-        const withdrawalRecord = {
-          wallet: userAccount,
-          amount: minedAmount,
-          status: "pending"
-        };
-        withdrawals.push(withdrawalRecord);
-        updateUserWithdrawalTable();
-        updateAdminWithdrawalTable();
-        alert("Your withdrawal request for " + minedAmount.toFixed(12) + " MSK is now pending admin approval.");
+        withdrawals[userAccount].push({ amount: minedAmount, status: 'pending' });
+        alert("Your withdrawal request for " + minedAmount.toFixed(12) + " MSK is pending admin approval.");
       } else {
         alert("No mined amount available to withdraw.");
       }
-      // Reset for potential new mining session
+      // Reset the session.
       minedAmount = 0;
       document.getElementById('minedAmount').innerText = "0";
       document.getElementById('withdrawBtn').disabled = true;
@@ -190,73 +187,60 @@
       document.getElementById('startMiningBtn').innerText = "Start Mining";
       document.getElementById('timeRemaining').innerText = "10:00";
       sessionFinished = false;
+      
+      // Save updates.
+      minedProgress[userAccount] = minedAmount;
+      saveData();
+      updateUserWithdrawalTable();
+      updateAdminWithdrawalTable();
     });
 
-    // Update the user's withdrawal table (only shows records for the connected user)
+    // Update the connected user’s withdrawal table.
     function updateUserWithdrawalTable() {
       const tableBody = document.querySelector("#userWithdrawalTable tbody");
       tableBody.innerHTML = "";
-      const userRecords = withdrawals.filter(record => record.wallet.toLowerCase() === userAccount.toLowerCase());
+      const userRecords = withdrawals[userAccount] || [];
       userRecords.forEach(record => {
         const row = document.createElement("tr");
-        const amountCell = document.createElement("td");
-        amountCell.innerText = record.amount.toFixed(12);
-        const statusCell = document.createElement("td");
-        statusCell.innerText = record.status;
-        row.appendChild(amountCell);
-        row.appendChild(statusCell);
+        row.innerHTML = `<td>${record.amount.toFixed(12)}</td><td>${record.status}</td>`;
         tableBody.appendChild(row);
       });
     }
 
-    // Update the admin withdrawal table (shows all withdrawal requests)
+    // Update the admin panel’s withdrawal table to list all requests.
     function updateAdminWithdrawalTable() {
       const tableBody = document.querySelector("#adminWithdrawalTable tbody");
       tableBody.innerHTML = "";
-      withdrawals.forEach((record, index) => {
-        const row = document.createElement("tr");
-
-        // Wallet address cell
-        const walletCell = document.createElement("td");
-        walletCell.innerText = record.wallet;
-        row.appendChild(walletCell);
-
-        // Amount cell
-        const amountCell = document.createElement("td");
-        amountCell.innerText = record.amount.toFixed(12);
-        row.appendChild(amountCell);
-
-        // Status cell
-        const statusCell = document.createElement("td");
-        statusCell.innerText = record.status;
-        row.appendChild(statusCell);
-
-        // Actions cell: Copy button and Approve button if pending
-        const actionsCell = document.createElement("td");
-
-        const copyBtn = document.createElement("button");
-        copyBtn.innerText = "Copy";
-        copyBtn.addEventListener("click", () => {
-          navigator.clipboard.writeText(record.wallet)
-            .then(() => { alert("Copied wallet address: " + record.wallet); })
-            .catch(() => { alert("Failed to copy wallet address."); });
+      for (const [wallet, records] of Object.entries(withdrawals)) {
+        records.forEach((record, index) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${wallet}</td>
+            <td>${record.amount.toFixed(12)}</td>
+            <td>${record.status}</td>
+            <td>
+              <button onclick="copyWallet('${wallet}')">Copy</button>
+              ${record.status === 'pending' ? `<button onclick="approveWithdrawal('${wallet}', ${index})">Approve</button>` : ''}
+            </td>
+          `;
+          tableBody.appendChild(row);
         });
-        actionsCell.appendChild(copyBtn);
+      }
+    }
 
-        if (record.status === "pending") {
-          const approveBtn = document.createElement("button");
-          approveBtn.innerText = "Approve";
-          approveBtn.style.marginLeft = "10px";
-          approveBtn.addEventListener("click", () => {
-            withdrawals[index].status = "approved";
-            updateAdminWithdrawalTable();
-            updateUserWithdrawalTable();
-          });
-          actionsCell.appendChild(approveBtn);
-        }
-        row.appendChild(actionsCell);
-        tableBody.appendChild(row);
-      });
+    // Copy wallet address to clipboard.
+    function copyWallet(wallet) {
+      navigator.clipboard.writeText(wallet)
+        .then(() => alert("Wallet address copied: " + wallet))
+        .catch(() => alert("Failed to copy wallet address."));
+    }
+
+    // Approve a withdrawal request (admin only).
+    function approveWithdrawal(wallet, index) {
+      withdrawals[wallet][index].status = 'approved';
+      saveData();
+      updateUserWithdrawalTable();
+      updateAdminWithdrawalTable();
     }
   </script>
 </body>
